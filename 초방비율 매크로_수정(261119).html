@@ -1,0 +1,1057 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>초방비율 매크로</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+/* 레이아웃: 1 파일 올리기 → 2 업로드 파일 변환 → 3 계산 기준 → 4 확인 → 5 저장 */
+:root {
+  --bg: #f5f6f7; --surface: #ffffff; --fg: #1b2227; --muted: #5b6770; --line: #d7dde1;
+  --accent: #14646e; --accent-fg: #ffffff; --accent-soft: #dff0f1;
+  --warn: #8f5200; --warn-soft: #fbeed6; --bad: #a32b2b; --bad-soft: #f8e0e0; --ok: #1d6b3c; --ok-soft: #dff1e5;
+  --font: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12171a; --surface: #1a2125; --fg: #e5ebee; --muted: #9aa8b0; --line: #2b353b;
+    --accent: #4fb3bf; --accent-fg: #0b1417; --accent-soft: #1b2e31;
+    --warn: #e5b362; --warn-soft: #2f2616; --bad: #ef8a8a; --bad-soft: #3a2020; --ok: #7ccf9a; --ok-soft: #1c2f23; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12171a; --surface: #1a2125; --fg: #e5ebee; --muted: #9aa8b0; --line: #2b353b;
+  --accent: #4fb3bf; --accent-fg: #0b1417; --accent-soft: #1b2e31;
+  --warn: #e5b362; --warn-soft: #2f2616; --bad: #ef8a8a; --bad-soft: #3a2020; --ok: #7ccf9a; --ok-soft: #1c2f23; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 15px; line-height: 1.6; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 16px 64px; display: flex; flex-direction: column; gap: 20px; }
+h1 { font-size: 26px; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 16px; margin: 0 0 12px; }
+.lead { color: var(--muted); margin: 4px 0 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; min-width: 0; }
+.drop { border: 2px dashed var(--line); border-radius: 8px; padding: 26px 16px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; }
+.drop.over, .drop:hover { border-color: var(--accent); background: var(--accent-soft); }
+.drop strong { display: block; font-size: 16px; }
+.drop span { color: var(--muted); font-size: 13px; }
+.slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 14px; }
+.slot { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; min-width: 0; }
+.slot b { display: block; font-size: 13px; }
+.slot span { display: block; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.slot.done { border-color: var(--ok); background: var(--ok-soft); }
+.slot.done span { color: var(--ok); }
+.slot.fail { border-color: var(--bad); background: var(--bad-soft); }
+.slot.fail span { color: var(--bad); }
+.row { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: flex-start; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 240px; flex: 1 1 280px; }
+.field label { font-weight: 500; }
+.field small { color: var(--muted); font-size: 12px; line-height: 1.45; }
+select { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); }
+.check { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.check input { margin-top: 5px; accent-color: var(--accent); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.stat { border-left: 3px solid var(--accent); padding: 2px 0 2px 10px; }
+.stat b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 12px; }
+.stat.warn { border-color: var(--warn); }
+.scroll { overflow: auto; border: 1px solid var(--line); border-radius: 6px; max-height: 560px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; font-variant-numeric: tabular-nums; }
+td.name { white-space: normal; min-width: 280px; max-width: 420px; }
+th { background: var(--accent-soft); font-weight: 700; position: sticky; top: 0; z-index: 1; }
+td.num, th.num { text-align: right; }
+tr.skip td { color: var(--muted); }
+td.pick { font-weight: 700; }
+.tag { display: inline-block; padding: 0 8px; border-radius: 10px; font-size: 12px; background: var(--accent-soft); color: var(--accent); }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+.tag.bad { background: var(--bad-soft); color: var(--bad); }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button { font: inherit; font-weight: 500; padding: 9px 18px; border-radius: 6px; border: 1px solid var(--accent); cursor: pointer; background: var(--accent); color: var(--accent-fg); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible, .drop:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+.err { background: var(--bad-soft); color: var(--bad); padding: 10px 14px; border-radius: 6px; }
+.channel { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 14px; }
+.channel label { font-weight: 500; }
+.ghost { background: transparent; color: var(--accent); }
+details { margin-top: 4px; }
+summary { cursor: pointer; font-weight: 500; padding: 4px 0; }
+.msg { background: var(--warn-soft); color: var(--warn); padding: 10px 14px; border-radius: 6px; margin-top: 10px; }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) { .drop { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>초방비율 매크로</h1>
+    <p class="lead">통합 업로드 파일을 초방비율용 목록으로 변환하고, 통합편성표에서 편성 길이를 찾아 초방비율 파일의 방송시간·초방일·비고까지 한 화면에서 입력합니다. 파일은 이 컴퓨터 안에서만 처리되며 어디에도 전송되지 않습니다.</p>
+    <p class="note" style="margin:6px 0 0">빌드 2026-11-18 · 변환 시트 행 높이 17.4</p>
+  </header>
+
+  <section class="panel">
+    <h2>1. 파일 올리기</h2>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="파일 선택">
+      <strong>엑셀 파일 3개를 한 번에 끌어다 놓거나 클릭해서 선택하세요</strong>
+      <span>통합편성표 · 통합 업로드 파일 · 초방비율 파일 (순서 상관없이 자동으로 구분합니다)</span>
+    </div>
+    <input type="file" id="file" accept=".xlsx,.xls,.csv" multiple hidden>
+    <div class="slots">
+      <div class="slot" id="slotGrid"><b>통합편성표</b><span>주간 편성표 시트가 들어 있는 파일</span></div>
+      <div class="slot" id="slotUpload"><b>통합 업로드 파일</b><span>str1~str8 열이 있는 업로드 파일 (XLSX, XLS, CSV)</span></div>
+      <div class="slot" id="slotRatio"><b>초방비율 파일 (입력 대상)</b><span>"초방 프로그램 리스트" 상세 내역 파일</span></div>
+    </div>
+    <div class="channel">
+      <label for="channelSelect">채널</label>
+      <select id="channelSelect"><option>SPOTV</option><option>SPOTV2</option><option>PLUS</option><option>GOLF+</option><option>PRIME</option><option>PRIME2</option><option>PRIME+</option></select>
+      <span class="note" style="margin:0">First-window 규칙과 다운로드 파일명에 쓰입니다. 통합편성표의 시트 이름에서 채널을 찾으면 자동으로 선택합니다.</span>
+      <button id="btnReset" class="ghost" style="margin-left:auto">초기화</button>
+    </div>
+    <div class="err" id="err" hidden style="margin-top:12px"></div>
+  </section>
+
+  <section class="panel" id="convPanel" hidden>
+    <h2>2. 업로드 파일 변환 (초방비율용 시트)</h2>
+    <div class="stats" id="convStats"></div>
+    <div class="actions">
+      <button id="btnConv" class="ghost">초방비율용 시트가 추가된 업로드 파일 다운로드</button>
+      <span class="note" style="margin:0">아래 듀레이션 계산에는 이 파일을 다시 올리지 않아도 변환 결과가 바로 쓰입니다.</span>
+    </div>
+    <p class="note" id="convInfo"></p>
+    <div class="msg" id="convMsg" hidden></div>
+    <details>
+      <summary>변환 결과 미리보기 (최대 100행)</summary>
+      <div class="scroll"><table id="convTbl"></table></div>
+    </details>
+  </section>
+
+  <section class="panel" id="optPanel" hidden>
+    <h2>3. 계산 기준</h2>
+    <div class="row">
+      <div class="field">
+        <label for="method">듀레이션 계산 방법</label>
+        <select id="method">
+          <option value="grid" selected>편성표 칸 길이 그대로 (기본)</option>
+          <option value="label">시작시각 ~ 편성표 칸 끝</option>
+          <option value="gap">다음 편성 시작시각까지 간격</option>
+        </select>
+        <small id="methodHelp"></small>
+      </div>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="oFw"><span>초방(First-window) 표시된 항목만 입력<br><small>끄면 목록의 생중계·본방송·녹화방송을 모두 입력합니다.</small></span></label>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="resPanel" hidden>
+    <h2>4. 확인</h2>
+    <div class="stats" id="stats"></div>
+    <div class="scroll"><table id="tbl"></table></div>
+    <p class="note">칸 길이, 시작~칸 끝, 편성 간격 세 가지 계산값을 모두 보여주며, 굵게 표시된 값이 현재 기준으로 입력됩니다. 회색 행(비초방)은 입력하지 않습니다. "찾지 못함"과 "확인" 행은 편성명·초방일·비고는 그대로 입력하고, 방송시간 칸만 노란색으로 표시합니다(찾지 못함은 값이 비어 있습니다).</p>
+  </section>
+
+  <section class="panel" id="savePanel" hidden>
+    <h2>5. 저장</h2>
+    <div class="actions">
+      <button id="btnSave">초방비율 파일에 입력하고 저장</button>
+      <span id="saveInfo" class="note" style="margin:0"></span>
+    </div>
+    <div class="msg" id="saveMsg" hidden></div>
+    <p class="note">원본 파일은 바꾸지 않습니다. 초방비율 파일에 이전 내용이 적혀 있어도 모두 지우고 새로 올린 파일 기준으로 다시 입력합니다. 프로그램명, 방송시간(편당·총), 초방일(YYYY-MM-DD), 비고(First-window) 칸만 채우며 듀레이션을 확인하지 못한 편성은 방송시간 칸을 노란색으로 표시하고, 제목·헤더·서식·수식은 원본 그대로 둔 새 파일을 내려받습니다. 초방일은 초방비율용 목록의 년·월·일(B·C·D열) 날짜 그대로입니다.</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var files = { grid: null, upload: null, ratio: null };
+  var gridDays = null;       // 통합편성표 해석 결과
+  var up = null;             // 통합 업로드 파일 상태 { file, kind, buf, book, rows, name, conv }
+  var listData = null;       // 변환 결과에서 만든 { items, all }
+  var channelTouched = false;
+  var model = null;          // 계산 결과
+  var DAY_START_MIN = 180;   // 편성일은 03:00에 시작
+  var ROW_MIN = 7.5;         // 편성표 한 행 = 7.5분
+  var DAY_ROWS = 192;        // 24시간
+  var METHOD_HELP = {
+    label: "목록의 시작 시각부터 편성표 칸이 끝나는 시각까지입니다. 생중계처럼 칸보다 먼저 시작하는 편성(예: 10:20 시작, 칸은 10:30)을 시작 시각 기준으로 계산합니다.",
+    grid: "편성표에서 색칠된 칸의 높이(한 행 7.5분)만큼 그대로 계산합니다. 시작 시각 표기와 칸 시작이 달라도 칸 높이만 봅니다.",
+    gap: "목록(업로드파일모음)에서 이 편성의 시작 시각부터 바로 다음 편성의 시작 시각까지의 간격입니다. 편성표를 쓰지 않습니다."
+  };
+
+  function showErr(m) { var e = $("err"); e.textContent = m || ""; e.hidden = !m; }
+
+  /* ================= xlsx(zip) 읽기 도구 ================= */
+  function xml(text) { return new DOMParser().parseFromString(text, "application/xml"); }
+  function kids(el, name) { return Array.prototype.filter.call(el.childNodes, function (n) { return n.nodeType === 1 && n.localName === name; }); }
+  function colNum(ref) { var m = /^([A-Z]+)/.exec(ref)[1], n = 0; for (var i = 0; i < m.length; i++) n = n * 26 + m.charCodeAt(i) - 64; return n; }
+  function colName(n) { var s = ""; while (n > 0) { var r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = (n - r - 1) / 26; } return s; }
+  function rowNum(ref) { return parseInt(/(\d+)$/.exec(ref)[1], 10); }
+
+  function readText(zip, path) { var f = zip.file(path); return f ? f.async("string") : Promise.resolve(null); }
+
+  function openBook(file) {
+    return file.arrayBuffer().then(function (buf) { return JSZip.loadAsync(buf); }).then(function (zip) {
+      return Promise.all([readText(zip, "xl/workbook.xml"), readText(zip, "xl/_rels/workbook.xml.rels"), readText(zip, "xl/sharedStrings.xml"),
+        readText(zip, "xl/styles.xml"), readText(zip, "xl/theme/theme1.xml")]).then(function (r) {
+        var rawShared = r[2], rawStyles = r[3];
+        var wb = xml(r[0]), rels = xml(r[1]);
+        var relMap = {};
+        Array.prototype.forEach.call(rels.getElementsByTagName("Relationship"), function (n) { relMap[n.getAttribute("Id")] = n.getAttribute("Target"); });
+        var sheets = Array.prototype.map.call(wb.getElementsByTagName("sheet"), function (n) {
+          var t = relMap[n.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id")] || "";
+          t = t.replace(/^\//, "");
+          return { name: n.getAttribute("name"), path: t.indexOf("xl/") === 0 ? t : "xl/" + t };
+        });
+        var pr = wb.getElementsByTagName("workbookPr")[0];
+        var book = { zip: zip, file: file, sheets: sheets, date1904: !!pr && pr.getAttribute("date1904") === "1", wbText: r[0], shared: [], styles: null, theme: null, cache: {}, rawShared: rawShared, rawStyles: rawStyles };
+        if (r[2]) {
+          var sd = xml(r[2]);
+          book.shared = Array.prototype.map.call(sd.getElementsByTagName("si"), function (si) {
+            return Array.prototype.map.call(si.getElementsByTagName("t"), function (t) { return t.textContent; }).join("");
+          });
+        }
+        book.theme = parseTheme(r[4]);
+        book.styles = parseStyles(r[3], book.theme);
+        return book;
+      });
+    });
+  }
+
+  function parseTheme(text) {
+    var out = {};
+    if (!text) return out;
+    var d = xml(text), names = ["lt1", "dk1", "lt2", "dk2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6", "hlink", "folHlink"];
+    names.forEach(function (n, i) {
+      var el = d.getElementsByTagNameNS("*", n)[0];
+      if (!el) return;
+      var c = el.firstElementChild, v = c.getAttribute("val");
+      var hex = c.localName === "sysClr" ? c.getAttribute("lastClr") : v;
+      out[i] = hex;
+    });
+    return out;
+  }
+
+  function hex2rgb(h) { return [parseInt(h.substr(0, 2), 16), parseInt(h.substr(2, 2), 16), parseInt(h.substr(4, 2), 16)]; }
+  function applyTint(rgb, tint) {
+    if (!tint) return rgb;
+    var r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, h = 0, s = 0;
+    if (mx !== mn) {
+      var d = mx - mn; s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      if (mx === r) h = (g - b) / d + (g < b ? 6 : 0); else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
+      h /= 6;
+    }
+    l = tint < 0 ? l * (1 + tint) : l * (1 - tint) + tint;
+    function f(p, q, t) { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1 / 6) return p + (q - p) * 6 * t; if (t < 1 / 2) return q; if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6; return p; }
+    var R, G, B;
+    if (s === 0) { R = G = B = l; } else { var q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q; R = f(p, q, h + 1 / 3); G = f(p, q, h); B = f(p, q, h - 1 / 3); }
+    return [Math.round(R * 255), Math.round(G * 255), Math.round(B * 255)];
+  }
+  function colorToRgb(el, theme) {
+    if (!el) return null;
+    if (el.hasAttribute("rgb")) return hex2rgb(el.getAttribute("rgb").slice(-6));
+    if (el.hasAttribute("theme")) { var t = theme[el.getAttribute("theme")]; if (!t) return null; return applyTint(hex2rgb(t), parseFloat(el.getAttribute("tint") || "0")); }
+    if (el.hasAttribute("indexed")) return null;
+    return null;
+  }
+
+  function isDateFmt(id, code) {
+    if ((id >= 14 && id <= 22) || (id >= 27 && id <= 36) || (id >= 45 && id <= 47) || (id >= 50 && id <= 58)) return true;
+    if (!code) return false;
+    var c = code.replace(/"[^"]*"/g, "").replace(/\\./g, "").replace(/\[[^\]]*\]/g, "");
+    return /[ymdhs]/i.test(c) && !/^general$/i.test(c);
+  }
+  // cellXfs 번호 -> { fill: [r,g,b] | null, top: 선 모양, bottom: 선 모양 }
+  function parseStyles(text, theme) {
+    var out = [];
+    if (!text) return out;
+    var d = xml(text);
+    var fillsEl = d.getElementsByTagName("fills")[0], bordersEl = d.getElementsByTagName("borders")[0], xfsEl = d.getElementsByTagName("cellXfs")[0];
+    var fmtCodes = {};
+    Array.prototype.forEach.call(d.getElementsByTagName("numFmt"), function (n) { fmtCodes[n.getAttribute("numFmtId")] = n.getAttribute("formatCode"); });
+    var fills = fillsEl ? kids(fillsEl, "fill").map(function (f) {
+      var p = kids(f, "patternFill")[0];
+      if (!p || p.getAttribute("patternType") !== "solid") return null;
+      return colorToRgb(kids(p, "fgColor")[0], theme);
+    }) : [];
+    var borders = bordersEl ? kids(bordersEl, "border").map(function (b) {
+      var t = kids(b, "top")[0], bt = kids(b, "bottom")[0];
+      return { top: t ? t.getAttribute("style") : null, bottom: bt ? bt.getAttribute("style") : null };
+    }) : [];
+    if (xfsEl) kids(xfsEl, "xf").forEach(function (xf) {
+      var fi = parseInt(xf.getAttribute("fillId") || "0", 10), bi = parseInt(xf.getAttribute("borderId") || "0", 10);
+      var b = borders[bi] || { top: null, bottom: null };
+      var nid = parseInt(xf.getAttribute("numFmtId") || "0", 10), code = fmtCodes[nid] || null;
+      out.push({ fill: fills[fi] || null, top: b.top, bottom: b.bottom, isDate: isDateFmt(nid, code), pad: code && /^0{2,}$/.test(code) ? code.length : 0 });
+    });
+    return out;
+  }
+
+  // 시트 하나를 { cells: {"D8": {s, v, t}}, merges: [{c1,r1,c2,r2}] } 형태로 읽기
+  function readSheet(book, name) {
+    if (book.cache[name]) return Promise.resolve(book.cache[name]);
+    var sh = book.sheets.filter(function (s) { return s.name === name; })[0];
+    return readText(book.zip, sh.path).then(function (text) {
+      var d = xml(text), cells = {}, rows = {};
+      Array.prototype.forEach.call(d.getElementsByTagName("c"), function (c) {
+        var ref = c.getAttribute("r"), t = c.getAttribute("t"), s = parseInt(c.getAttribute("s") || "0", 10), v = null;
+        var ve = kids(c, "v")[0];
+        if (t === "s" && ve) v = book.shared[parseInt(ve.textContent, 10)];
+        else if (t === "inlineStr") v = Array.prototype.map.call(c.getElementsByTagName("t"), function (x) { return x.textContent; }).join("");
+        else if (ve) v = (t === "str" || t === "e" || t === "b") ? ve.textContent : parseFloat(ve.textContent);
+        cells[ref] = { s: s, v: v, f: !!kids(c, "f")[0] };
+      });
+      var merges = Array.prototype.map.call(d.getElementsByTagName("mergeCell"), function (m) {
+        var p = m.getAttribute("ref").split(":"), a = p[0], b = p[1] || p[0];
+        return { c1: colNum(a), r1: rowNum(a), c2: colNum(b), r2: rowNum(b) };
+      });
+      var res = { cells: cells, merges: merges, doc: d, path: sh.path, text: text };
+      book.cache[name] = res;
+      return res;
+    });
+  }
+
+  function serialDate(book, n) {
+    var base = book.date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
+    var dt = new Date(base + Math.round(n) * 86400000);
+    return dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate();   // 20261102
+  }
+  function dateAdd(key, days) {
+    var y = Math.floor(key / 10000), m = Math.floor(key / 100) % 100, d = key % 100;
+    var dt = new Date(Date.UTC(y, m - 1, d + days));
+    return dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate();
+  }
+  function fmtDate(key) { return String(Math.floor(key / 100) % 100) + "/" + String(key % 100); }
+  function hm(min) { min = Math.round(min); var h = Math.floor(min / 60) % 24, m = min % 60; return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m; }
+  function clock(off) { return hm(off + DAY_START_MIN); }   // 03:00 기준 분 -> 시각 글자
+
+  /* ================= 파일 종류 구분 ================= */
+  function classify(book) {
+    var names = book.sheets.map(function (s) { return s.name; });
+    if (names.some(function (n) { return /\d+월\s*\d+주/.test(n); })) return "grid";
+    return readSheet(book, names[0]).then(function (sh) {
+      var keys = Object.keys(sh.cells);
+      var isRatio = keys.some(function (k) { var v = sh.cells[k].v; return typeof v === "string" && (v.indexOf("초방 프로그램 리스트") >= 0 || v.indexOf("프로그램명(편성 회차") >= 0); });
+      if (isRatio) return "ratio";
+      var a1 = sh.cells["A1"] && String(sh.cells["A1"].v).trim() === "str1";
+      var hasType = keys.some(function (k) { return /^H\d+$/.test(k) && ["LIVE", "본방송", "녹화방송", "재방송"].indexOf(String(sh.cells[k].v).trim()) >= 0; });
+      return (names.indexOf("초방비율용") >= 0 || a1 || hasType) ? "upload" : null;
+    });
+  }
+
+  var drop = $("drop"), input = $("file");
+  drop.addEventListener("click", function () { input.click(); });
+  drop.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
+  ["dragenter", "dragover"].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add("over"); }); });
+  ["dragleave", "drop"].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove("over"); }); });
+  drop.addEventListener("drop", function (e) { loadAll(Array.prototype.slice.call(e.dataTransfer.files)); });
+  input.addEventListener("change", function () { loadAll(Array.prototype.slice.call(input.files)); input.value = ""; });
+
+  function setSlot(role, state, text) {
+    var el = $({ grid: "slotGrid", upload: "slotUpload", ratio: "slotRatio" }[role]);
+    el.className = "slot" + (state ? " " + state : "");
+    el.getElementsByTagName("span")[0].textContent = text;
+  }
+
+  function loadAll(list) {
+    showErr("");
+    if (typeof JSZip === "undefined") { showErr("엑셀 처리 라이브러리를 불러오지 못했습니다. 인터넷에 연결된 상태에서 이 파일을 다시 열어 주세요."); return; }
+    var chain = Promise.resolve();
+    list.forEach(function (f) {
+      chain = chain.then(function () {
+        if (/\.(xls|csv)$/i.test(f.name)) return loadLegacyUpload(f);
+        if (!/\.xlsx$/i.test(f.name)) { showErr(f.name + " 은(는) 엑셀(.xlsx, .xls) 또는 CSV 파일이 아닙니다."); return; }
+        return openBook(f).then(function (book) {
+          return Promise.resolve(classify(book)).then(function (role) {
+            if (!role) { showErr(f.name + " 이(가) 어떤 파일인지 알 수 없습니다. 통합편성표 / 통합 업로드 파일 / 초방비율 파일 중 하나여야 합니다."); return; }
+            if (role === "upload") return loadUploadXlsx(f, book);
+            files[role] = book;
+            if (role === "grid") gridDays = null;
+            setSlot(role, "done", f.name);
+          });
+        }).catch(function (e) { showErr(f.name + " 을(를) 읽지 못했습니다. 파일이 손상되었거나 암호가 걸려 있을 수 있습니다." + (e && e.message ? " (" + e.message + ")" : "")); });
+      });
+    });
+    chain.then(afterLoad);
+  }
+
+  /* ================= 통합 업로드 파일 읽기 (기존 변환 매크로) ================= */
+  function dayOfSerial(book, v) {
+    var base = book.date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
+    return new Date(base + Math.floor(v) * 86400000).getUTCDate();
+  }
+
+  // 첫 시트의 값을 화면에 보이는 글자 그대로 2차원 배열로 (00 서식의 앞자리 0 유지, 날짜 칸은 일자만)
+  function sheetRows(book, sh) {
+    var maxR = 0, maxC = 11;
+    Object.keys(sh.cells).forEach(function (ref) {
+      var v = sh.cells[ref].v;
+      if (v === null || v === "") return;
+      maxR = Math.max(maxR, rowNum(ref)); maxC = Math.max(maxC, colNum(ref));
+    });
+    var rows = [];
+    for (var r = 1; r <= maxR; r++) {
+      var rr = [];
+      for (var c = 1; c <= maxC; c++) {
+        var cell = sh.cells[colName(c) + r], v = cell ? cell.v : null, out = "";
+        if (v !== null && v !== undefined) {
+          if (typeof v === "number") {
+            var st = book.styles[cell.s] || {};
+            if (st.isDate) out = String(dayOfSerial(book, v));
+            else if (st.pad) out = String(v).padStart(st.pad, "0");
+            else out = String(v);
+          } else out = String(v);
+        }
+        rr.push(out);
+      }
+      rows.push(rr);
+    }
+    return rows;
+  }
+
+  function loadUploadXlsx(f, book) {
+    return Promise.all([readSheet(book, book.sheets[0].name), f.arrayBuffer()]).then(function (r) {
+      up = { file: f, kind: "xlsx", buf: r[1], book: book, rows: sheetRows(book, r[0]), sheet: r[0], name: book.sheets[0].name, conv: null };
+      files.upload = book;
+      setSlot("upload", "done", f.name);
+    });
+  }
+
+  function loadLegacyUpload(f) {
+    if (typeof XLSX === "undefined") { showErr("엑셀 처리 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요."); return Promise.resolve(); }
+    return f.arrayBuffer().then(function (buf) {
+      var wb = XLSX.read(buf, { type: "array" }), name = wb.SheetNames[0];
+      if (!name) throw new Error("시트를 찾을 수 없습니다.");
+      var rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: "", raw: false });
+      up = { file: f, kind: "legacy", buf: buf, rows: rows, name: name, conv: null };
+      files.upload = up;
+      setSlot("upload", "done", f.name);
+    }).catch(function (e) { showErr(f.name + " 을(를) 읽지 못했습니다: " + (e && e.message ? e.message : e)); });
+  }
+
+  // 기존 변환 규칙 그대로: LIVE/본방송/녹화방송만 남기고 G열에 (생)과 (월/일) 추가, I열에 First-window 판단
+  function convertRows(rows, selectedChannel) {
+    if (!rows.length) throw new Error("파일에 데이터가 없습니다.");
+    if (Math.max.apply(null, rows.map(function (r) { return r.length; })) < 8) throw new Error("H열이 없습니다. 최소 8개 열이 필요합니다.");
+    var data = rows.slice(1);
+    var keptWithSource = data.map(function (r, i) { return { r: r, sourceRow: i + 2 }; }).filter(function (item) { return ["LIVE", "본방송", "녹화방송"].indexOf(String(item.r[7] == null ? "" : item.r[7]).trim()) >= 0; });
+    var kept = keptWithSource.map(function (item) { return item.r; });
+    var result = [rows[0].slice(0, 9)].concat(kept.map(function (r, i) {
+      var out = r.slice(0, 8); out[0] = i + 1;
+      var type = String(r[7] == null ? "" : r[7]).trim(), isLive = type === "LIVE";
+      var suffix = " (" + String(r[2] == null ? "" : r[2]) + "/" + String(r[3] == null ? "" : r[3]) + ")";
+      var g = String(out[6] == null ? "" : out[6]);
+      var originalTitle = g.trim();
+      if (g.endsWith(suffix)) g = g.slice(0, -suffix.length);
+      if (isLive && !g.endsWith(" (생)")) g += " (생)";
+      out[6] = g + suffix;
+      var ch = selectedChannel;
+      var isRunTheCity = ch === "SPOTV" && g.indexOf("런 더 시티") >= 0;
+      var isWorldRally = ch === "SPOTV2" && g.indexOf("월드 랠리 챔피언십") >= 0;
+      var plusKeywords = ["장애물 레이스", "펜싱", "WSL", "사이클링", "크로스컨트리", "론진", "로드사이클", "SailGP", "UIPM", "리저브 컵", "PLUS 프로젝트"];
+      var isPlusProject = ch === "PLUS" && /^plus\s*프로젝트\s*<[^>]+>/i.test(originalTitle);
+      var isPlusKeyword = ch === "PLUS" && (isPlusProject || plusKeywords.some(function (k) { return originalTitle.indexOf(k) >= 0; }));
+      var isGolfChampions = ch === "GOLF+" && !isLive && type === "녹화방송" && originalTitle.indexOf("챔피언스") >= 0;
+      var isGolfHighlightExcluded = ch === "GOLF+" && originalTitle.indexOf("챔피언스 하이라이트") >= 0;
+      var isPrimeKeyword = ch === "PRIME" && ["스포 타임머신 AI 리마스터드", "매거진"].some(function (k) { return originalTitle.indexOf(k) >= 0; });
+      var isPrimeExcluded = ch === "PRIME" && originalTitle.indexOf("FULL로 보는") >= 0;
+      var isPrime2SailGP = ch === "PRIME2" && /SAILGP/i.test(originalTitle.replace(/\s+/g, ""));
+      var isPrimePlusEnglishMLB = ch === "PRIME+" && originalTitle.indexOf("[영어중계]") >= 0 && originalTitle.indexOf("메이저리그") >= 0;
+      var isPlusExcluded = ch === "PLUS" && /^plus\s*프로젝트\s*<(상체라인 만들기|하체라인 만들기)>$/i.test(originalTitle);
+      out[8] = isLive ? "First-window" : (isPlusExcluded || isGolfHighlightExcluded || isPrimeExcluded) ? "" : (isRunTheCity || isWorldRally || isPlusKeyword || isGolfChampions || isPrimeKeyword || isPrime2SailGP || isPrimePlusEnglishMLB) ? "First-window" : "";
+      return out;
+    }));
+    return { data: data, keptWithSource: keptWithSource, kept: kept, removed: data.length - kept.length, result: result };
+  }
+
+  // 변환 결과 -> 듀레이션 계산용 목록
+  function buildList(conv) {
+    var items = conv.result.slice(1).map(function (r) {
+      return { no: r[0], y: Number(r[1]), mo: Number(r[2]), d: Number(r[3]), h: Number(r[4]), mi: Number(r[5]), name: String(r[6] || ""), typ: String(r[7] || ""), fw: String(r[8] || "").trim() !== "" };
+    });
+    var all = [];
+    conv.data.forEach(function (r) {
+      var y = Number(r[1]), mo = Number(r[2]), d = Number(r[3]), h = Number(r[4]), mi = Number(r[5]);
+      if ([y, mo, d, h, mi].every(isFinite) && r[1] !== "" && r[2] !== "") all.push(Date.UTC(y, mo - 1, d, h, mi) / 60000);
+    });
+    all.sort(function (a, b) { return a - b; });
+    return { items: items, all: all };
+  }
+
+  function renderConv() {
+    var c = up.conv;
+    $("convPanel").hidden = false;
+    $("convStats").innerHTML = [["전체 데이터", c.data.length, ""], ["남긴 데이터", c.kept.length, ""], ["제외한 데이터", c.removed, ""],
+      ["초방(First-window)", c.result.slice(1).filter(function (r) { return r[8]; }).length, ""]].map(function (x) { return '<div class="stat ' + x[2] + '"><b>' + x[1] + "</b><span>" + x[0] + "</span></div>"; }).join("");
+    $("convInfo").textContent = "채널 " + $("channelSelect").value + " 기준으로 LIVE·본방송·녹화방송만 남기고, LIVE는 G열에 (생), 모든 행에 (월/일)을 붙였습니다.";
+    var rows = c.result, n = Math.max.apply(null, rows.map(function (r) { return r.length; }));
+    var head = "<thead><tr>" + rows[0].map(function (v, i) { return "<th>" + esc(v === "" ? "열 " + (i + 1) : v) + "</th>"; }).join("") + "</tr></thead><tbody>";
+    var body = rows.slice(1, 101).map(function (r) { var t = ""; for (var i = 0; i < n; i++) t += "<td>" + esc(r[i] == null ? "" : r[i]) + "</td>"; return "<tr>" + t + "</tr>"; }).join("");
+    $("convTbl").innerHTML = head + body + "</tbody>";
+  }
+
+  // 업로드 파일 변환 -> (편성표가 있으면) 듀레이션 계산
+  function afterLoad() {
+    var p = Promise.resolve();
+    if (files.grid && !gridDays) p = parseGrid(files.grid).then(function (d) { gridDays = d; autoChannel(); });
+    p.then(function () {
+      if (up) {
+        try { up.conv = convertRows(up.rows, $("channelSelect").value); listData = buildList(up.conv); renderConv(); }
+        catch (e) { up.conv = null; listData = null; $("convPanel").hidden = true; showErr("업로드 파일 변환 오류: " + e.message); }
+      }
+      if (gridDays && listData) compute(); else if (model && files.ratio) updateSaveState();
+    }).catch(function (e) { showErr("통합편성표를 해석하지 못했습니다: " + (e && e.message ? e.message : e)); });
+  }
+
+  function autoChannel() {
+    if (channelTouched || !files.grid) return;
+    var sel = $("channelSelect");
+    files.grid.sheets.some(function (s) {
+      var m = /\(([^)]+)\)\s*$/.exec(s.name);
+      if (!m) return false;
+      var opt = Array.prototype.filter.call(sel.options, function (o) { return o.value.toUpperCase() === m[1].trim().toUpperCase(); })[0];
+      if (opt) { sel.value = opt.value; return true; }
+      return false;
+    });
+  }
+  $("channelSelect").addEventListener("change", function () { channelTouched = true; if (up) afterLoad(); });
+
+  /* ================= 통합편성표 해석 ================= */
+  var LEGEND = [["현장생중계", 7], ["수신생중계", 8], ["녹화중계", 9], ["본방송", 10]];   // 5행 G~J열
+
+  function colorDist(a, b) { return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]); }
+
+  // 편성표 전체 -> { 편성일: { groups: [...] } }
+  function parseGrid(book) {
+    var names = book.sheets.map(function (s) { return s.name; }).filter(function (n) { return /\d+월\s*\d+주/.test(n); });
+    var days = {};
+    return names.reduce(function (p, name) {
+      return p.then(function () {
+        return readSheet(book, name).then(function (sh) {
+          var legend = LEGEND.map(function (l) { var c = sh.cells[colName(l[1]) + "5"]; var st = c ? book.styles[c.s] : null; return { name: l[0], rgb: st ? st.fill : null }; }).filter(function (l) { return l.rgb; });
+          // 날짜가 들어 있는 6행의 열 = 요일 열
+          var dayCols = [];
+          Object.keys(sh.cells).forEach(function (ref) {
+            if (rowNum(ref) !== 6) return;
+            var v = sh.cells[ref].v;
+            if (typeof v === "number" && v > 30000 && v < 80000) dayCols.push({ col: colNum(ref), key: serialDate(book, v) });
+          });
+          var starts = sh.merges.filter(function (m) { return m.r1 >= 7 && dayCols.some(function (d) { return d.col === m.c1; }); }).map(function (m) { return m.r1; });
+          var r0 = starts.length ? Math.min.apply(null, starts) : 8;
+          dayCols.forEach(function (dc) {
+            var blocks = sh.merges.filter(function (m) { return m.c1 === dc.col && m.r1 >= r0 && m.r1 < r0 + DAY_ROWS; }).sort(function (a, b) { return a.r1 - b.r1; }).map(function (m) {
+              var top = sh.cells[colName(m.c1) + m.r1] || { s: 0, v: null };
+              var bot = sh.cells[colName(m.c1) + m.r2] || top;
+              var st = book.styles[top.s] || { fill: null, top: null };
+              var bst = book.styles[bot.s] || { bottom: null };
+              var cat = null;
+              if (st.fill) {
+                var best = null;
+                legend.forEach(function (l) { var dd = colorDist(l.rgb, st.fill); if (best === null || dd < best.d) best = { d: dd, n: l.name }; });
+                if (best && best.d <= 24) cat = best.n;
+              }
+              return { off1: (m.r1 - r0) * ROW_MIN, off2: (m.r2 - r0 + 1) * ROW_MIN, text: top.v === null ? "" : String(top.v), cat: cat, top: st.top, bot: bst.bottom };
+            });
+            // 굵은 테두리를 기준으로 한 편성(여러 칸) 묶기
+            var groups = [], cur = null;
+            blocks.forEach(function (b) {
+              if (!cur || b.top === "medium" || cur[cur.length - 1].bot === "medium") { cur = [b]; groups.push(cur); } else cur.push(b);
+            });
+            days[dc.key] = { sheet: name, groups: groups };
+          });
+        });
+      });
+    }, Promise.resolve()).then(function () { return days; });
+  }
+
+  // 편성 묶음의 끝(분). 편성일 끝까지 이어지면 다음 날 첫 묶음까지 이어서 계산
+  function groupEnd(days, key, g) {
+    var end = g[g.length - 1].off2, warn = "";
+    var last = g[g.length - 1];
+    if (end >= DAY_ROWS * ROW_MIN - 0.01 && last.bot !== "medium") {
+      var nk = dateAdd(key, 1), nd = days[nk];
+      if (!nd) warn = "다음 날 편성표 없음";
+      else {
+        var first = nd.groups[0];
+        if (first && first[0].off1 === 0 && first[0].top !== "medium") end += first[first.length - 1].off2;
+        else warn = "다음 날 이어짐 확인 불가";
+      }
+    }
+    return { end: end, warn: warn };
+  }
+
+  /* ================= 계산 ================= */
+  function tokens(text) {
+    return text.replace(/\d{1,2}:\d{2}/g, " ").split(/[\s()\[\]:\/,&\-]+/).filter(function (t) { return t && !/^(HD|생중계|생방송|영어중계)$/.test(t); });
+  }
+
+  function matchItem(days, it) {
+    var mins = it.h * 60 + it.mi, key = it.y * 10000 + it.mo * 100 + it.d, off;
+    if (mins < DAY_START_MIN) { key = dateAdd(key, -1); off = mins + 1440 - DAY_START_MIN; } else off = mins - DAY_START_MIN;
+    var day = days[key];
+    if (!day) return { status: "nosheet", why: fmtDate(key) + " 편성표 시트 없음" };
+    var best = null;
+    day.groups.forEach(function (g) {
+      if (!g[0].cat) return;
+      var dd = Math.abs(g[0].off1 - off);
+      if (best === null || dd < best.d) best = { d: dd, g: g };
+    });
+    if (!best || best.d > 20) return { status: "nomatch", why: "같은 시각에 색칠된 편성 칸 없음 (재방송이거나 시각 불일치)" };
+    var g = best.g, ge = groupEnd(days, key, g);
+    var txt = g.map(function (b) { return b.text; }).join(" ").replace(/\s+/g, " ").trim();
+    var tk = tokens(txt), hit = tk.filter(function (t) { return it.name.indexOf(t) >= 0; }).length;
+    return {
+      status: "ok", key: key, cat: g[0].cat, off: off, gridStart: g[0].off1, gridEnd: ge.end, warn: ge.warn,
+      grid: ge.end - g[0].off1, label: ge.end - off, diff: best.d, text: txt, score: tk.length ? hit / tk.length : 1
+    };
+  }
+
+  function compute() {
+    showErr("");
+    var days = gridDays, list = listData;
+    var rows = list.items.map(function (it) {
+      var m = matchItem(days, it);
+      var t = Date.UTC(it.y, it.mo - 1, it.d, it.h, it.mi) / 60000, gap = null;
+      for (var i = 0; i < list.all.length; i++) if (list.all[i] > t) { gap = list.all[i] - t; break; }
+      m.gap = gap;
+      return { it: it, m: m };
+    });
+    model = { rows: rows };
+    $("optPanel").hidden = false;
+    $("resPanel").hidden = false;
+    $("savePanel").hidden = false;
+    render();
+  }
+
+  function chosen(row) {
+    var m = row.m, method = $("method").value;
+    if (m.status !== "ok") return null;
+    if (method === "grid") return m.grid;
+    if (method === "gap") return m.gap !== null ? m.gap : m.label;
+    return m.label;
+  }
+
+  function rowFlag(row) {
+    var m = row.m;
+    if (m.status !== "ok") return { cls: "bad", txt: "찾지 못함", why: m.why };
+    var notes = [];
+    if (m.warn) notes.push(m.warn);
+    if (m.score < 0.5) notes.push("프로그램명 일치도 낮음");
+    if (m.diff > 15) notes.push("칸 시작과 " + m.diff + "분 차이");
+    if ($("method").value === "gap" && m.gap === null) notes.push("다음 편성 없음, 칸 기준 사용");
+    return notes.length ? { cls: "warn", txt: "확인", why: notes.join(", ") } : { cls: "ok", txt: "정상", why: "" };
+  }
+
+  function listKey(it) { return it.y * 10000 + it.mo * 100 + it.d; }   // 목록의 B(년)·C(월)·D(일) 열
+  function ymd(key) { var y = Math.floor(key / 10000), m = Math.floor(key / 100) % 100, d = key % 100; return y + "-" + (m < 10 ? "0" : "") + m + "-" + (d < 10 ? "0" : "") + d; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function selectedRows() {
+    var onlyFw = $("oFw").checked;
+    return model.rows.filter(function (r) { return !onlyFw || r.it.fw; });
+  }
+
+  function render() {
+    $("methodHelp").textContent = METHOD_HELP[$("method").value];
+    var rows = model.rows, sel = selectedRows(), onlyFw = $("oFw").checked;
+    var okCount = sel.filter(function (r) { return r.m.status === "ok"; }).length;
+    var warn = sel.filter(function (r) { return rowFlag(r).cls === "warn"; }).length;
+    var bad = sel.filter(function (r) { return r.m.status !== "ok"; }).length;
+    var total = sel.reduce(function (s, r) { var v = chosen(r); return s + (v || 0); }, 0);
+    var diffRows = sel.filter(function (r) { return r.m.status === "ok" && (r.m.grid !== r.m.label || (r.m.gap !== null && r.m.gap !== r.m.label)); }).length;
+    $("stats").innerHTML = [
+      ["입력 대상 편성", sel.length, ""], ["듀레이션 확인됨", okCount, ""], ["확인 필요", warn, warn ? "warn" : ""],
+      ["찾지 못함", bad, bad ? "warn" : ""], ["방법에 따라 값이 다른 편성", diffRows, diffRows ? "warn" : ""], ["입력될 총 분", total.toLocaleString("ko-KR"), ""]
+    ].map(function (x) { return '<div class="stat ' + x[2] + '"><b>' + x[1] + "</b><span>" + x[0] + "</span></div>"; }).join("");
+
+    var method = $("method").value;
+    var head = "<thead><tr><th>일자</th><th>시작</th><th>구분</th><th>프로그램명</th><th>편성표 색</th><th class='num'>칸 길이</th><th class='num'>시작~칸 끝</th><th class='num'>편성 간격</th><th class='num'>입력값(분)</th><th>초방일</th><th>비고</th><th>상태</th></tr></thead><tbody>";
+    var body = rows.map(function (r) {
+      var it = r.it, m = r.m, skip = onlyFw && !it.fw, f = rowFlag(r), val = chosen(r);
+      var c = function (v, key) { return "<td class='num" + (key === method && !skip ? " pick" : "") + "'>" + (v === null || v === undefined ? "" : v) + "</td>"; };
+      var cell = m.status === "ok"
+        ? c(m.grid, "grid") + c(m.label, "label") + c(m.gap, "gap")
+        : "<td></td><td></td><td></td>";
+      return "<tr class='" + (skip ? "skip" : "") + "'><td>" + it.mo + "/" + it.d + "</td><td>" + (it.h < 10 ? "0" : "") + it.h + ":" + (it.mi < 10 ? "0" : "") + it.mi + "</td><td>" + esc(it.typ) + (it.fw ? "" : " <span class='tag'>비초방</span>") + "</td>" +
+        "<td class='name'>" + esc(it.name) + "</td><td>" + (m.cat ? esc(m.cat) : "") + "</td>" + cell +
+        "<td class='num pick'>" + (skip || val === null ? "" : val) + "</td>" +
+        "<td>" + (skip ? "" : ymd(listKey(it))) + "</td><td>" + (skip || !it.fw ? "" : "First-window") + "</td>" +
+        "<td><span class='tag " + f.cls + "' title='" + esc(f.why) + "'>" + f.txt + "</span>" + (f.why ? " <span class='note' style='margin:0'>" + esc(f.why) + "</span>" : "") + "</td></tr>";
+    }).join("");
+    $("tbl").innerHTML = head + body + "</tbody>";
+    updateSaveState();
+  }
+  function updateSaveState() {
+    if (!model) return;
+    var sel = selectedRows(), yel = sel.filter(function (r) { return rowFlag(r).cls !== "ok"; }).length;
+    $("btnSave").disabled = sel.length === 0 || !files.ratio;
+    $("saveInfo").textContent = files.ratio ? sel.length + "개 편성을 입력합니다(이전 입력 내용은 지우고 새로 입력)." + (yel ? " (방송시간 칸 노란색 표시 " + yel + "개)" : "") : "초방비율 파일을 올리면 저장할 수 있습니다.";
+  }
+  $("method").addEventListener("change", function () { if (model) render(); });
+  $("oFw").addEventListener("change", function () { if (model) render(); });
+
+  /* ================= 초방비율 파일에 쓰기 ================= */
+  var NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+  function normName(s) { return String(s || "").replace(/\s+/g, " ").trim(); }
+
+  function findRatioLayout(book, sh) {
+    var lay = { first: 29, last: 296, colName: "A", colPer: "D", colTot: "E", colCnt: "C", colDate: "H", colNote: "J" };
+    var hdr = null;
+    Object.keys(sh.cells).forEach(function (ref) {
+      var v = sh.cells[ref].v;
+      if (typeof v !== "string") return;
+      var r = rowNum(ref), col = colName(colNum(ref));
+      if (v.indexOf("프로그램명") >= 0 && r > 20 && r < 60) { lay.colName = col; hdr = r; }
+      else if (v.trim() === "편수" && r > 20 && r < 60) lay.colCnt = col;
+      else if (v.trim() === "편당" && r > 20 && r < 60) lay.colPer = col;
+      else if (v.trim() === "총" && r > 20 && r < 60) lay.colTot = col;
+      else if (v.trim() === "초방일" && r > 20 && r < 60) lay.colDate = col;
+      else if (v.trim() === "비고" && r > 20 && r < 60) lay.colNote = col;
+    });
+    if (hdr) lay.first = hdr + 2;
+    // 입력 가능한 마지막 행: 편수 칸에 값이 있는 연속 행
+    var r = lay.first;
+    while (sh.cells[lay.colCnt + r] && typeof sh.cells[lay.colCnt + r].v === "number" && !sh.cells[lay.colCnt + r].f) r++;
+    lay.last = r - 1;
+    return lay;
+  }
+
+  function xmlEsc(t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  // 원본 시트 문자열에서 해당 칸만 바꿉니다. 나머지는 한 글자도 건드리지 않습니다.
+  function Patcher(text) {
+    this.text = text; this.miss = [];
+  }
+  Patcher.prototype.setCell = function (ref, build, styleOverride, quiet) {
+    var re = new RegExp('<c r="' + ref + '"([^>]*?)(/>|>[\\s\\S]*?</c>)');
+    var m = re.exec(this.text);
+    if (!m) { if (!quiet) this.miss.push(ref); return false; }
+    var sm = /\bs="(\d+)"/.exec(m[1]);
+    var s = styleOverride !== undefined && styleOverride !== null ? styleOverride : (sm ? sm[1] : null);
+    this.text = this.text.slice(0, m.index) + build(s) + this.text.slice(m.index + m[0].length);
+    return true;
+  };
+  Patcher.prototype.set = function (ref, kind, value, styleOverride) {   // 숫자 칸
+    return this.setCell(ref, function (s) { return '<c r="' + ref + '"' + (s !== null ? ' s="' + s + '"' : "") + "><v>" + value + "</v></c>"; }, styleOverride);
+  };
+  Patcher.prototype.setStr = function (ref, text, SS) {                    // 글자 칸
+    return this.setCell(ref, function (s) { return SS.cellXml(ref, s, text); });
+  };
+  Patcher.prototype.styleOf = function (ref) {
+    var m = new RegExp('<c r="' + ref + '"([^>]*?)(/>|>)').exec(this.text);
+    var sm = m && /\bs="(\d+)"/.exec(m[1]);
+    return sm ? parseInt(sm[1], 10) : 0;
+  };
+
+  function SharedStrings(raw) {
+    this.raw = raw; this.added = []; this.map = {}; this.uses = 0;
+    this.base = raw ? (raw.match(/<si[ >]/g) || []).length : 0;
+  }
+  SharedStrings.prototype.index = function (str) {
+    this.uses++;
+    if (this.map[str] === undefined) { this.map[str] = this.base + this.added.length; this.added.push(str); }
+    return this.map[str];
+  };
+  // 공유 문자열 표가 없는 파일은 칸 안에 글자를 직접 넣습니다
+  SharedStrings.prototype.cellXml = function (ref, s, text) {
+    var sa = s !== null && s !== undefined ? ' s="' + s + '"' : "";
+    if (!this.raw) return '<c r="' + ref + '"' + sa + ' t="inlineStr"><is><t xml:space="preserve">' + xmlEsc(text) + "</t></is></c>";
+    return '<c r="' + ref + '"' + sa + ' t="s"><v>' + this.index(text) + "</v></c>";
+  };
+  SharedStrings.prototype.build = function () {
+    if (!this.added.length) return this.raw;
+    var add = this.added.map(function (t) { return '<si><t xml:space="preserve">' + xmlEsc(t) + "</t></si>"; }).join("");
+    var self = this;
+    var out = this.raw.replace("</sst>", add + "</sst>");
+    out = out.replace(/<sst([^>]*)>/, function (m, a) {
+      a = a.replace(/uniqueCount="(\d+)"/, function (x, n) { return 'uniqueCount="' + (parseInt(n, 10) + self.added.length) + '"'; });
+      a = a.replace(/\bcount="(\d+)"/, function (x, n) { return 'count="' + (parseInt(n, 10) + self.uses) + '"'; });
+      return "<sst" + a + ">";
+    });
+    return out;
+  };
+
+  // styles.xml에 새 셀 서식(표시 형식, 노란색 채우기)을 추가합니다. 기존 서식은 그대로 두고 복사본만 만듭니다.
+  function StyleEdit(raw) {
+    this.raw = raw;
+    var m = /<cellXfs count="(\d+)"[^>]*>([\s\S]*?)<\/cellXfs>/.exec(raw);
+    this.xfs = m ? (m[2].match(/<xf\b[^>]*?(?:\/>|>[\s\S]*?<\/xf>)/g) || []) : [];
+    this.base = this.xfs.length; this.newXfs = []; this.cache = {};
+    var fm = /<fills count="(\d+)"/.exec(raw);
+    this.fillBase = fm ? parseInt(fm[1], 10) : 0; this.newFills = []; this.yf = null;
+    this.fmts = (raw.match(/<numFmt numFmtId="\d+"[^>]*formatCode="[^"]*"/g) || []).map(function (x) { return [parseInt(/numFmtId="(\d+)"/.exec(x)[1], 10), /formatCode="([^"]*)"/.exec(x)[1]]; });
+    this.newFmts = [];
+    var fl = /<fills[^>]*>([\s\S]*?)<\/fills>/.exec(raw);
+    this.fillList = fl ? (fl[1].match(/<fill>[\s\S]*?<\/fill>|<fill\/>/g) || []) : [];
+    this.yellowIds = [];
+    for (var fi = 0; fi < this.fillList.length; fi++) if (/patternType="solid"/.test(this.fillList[fi]) && /fgColor[^>]*rgb="FFFFFF00"/.test(this.fillList[fi])) this.yellowIds.push(fi);
+    if (this.yellowIds.length) this.yf = this.yellowIds[0];   // 이전에 칠해진 노란색이 있으면 그 채우기를 다시 씁니다
+  }
+  StyleEdit.prototype.numFmtId = function (code) {
+    var all = this.fmts.concat(this.newFmts), hit = all.filter(function (x) { return x[1] === code; })[0];
+    if (hit) return hit[0];
+    var id = Math.max.apply(null, [163].concat(all.map(function (x) { return x[0]; }))) + 1;
+    this.newFmts.push([id, code]);
+    return id;
+  };
+  StyleEdit.prototype.yellowFill = function () {
+    if (this.yf === null) { this.yf = this.fillBase + this.newFills.length; this.newFills.push('<fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor indexed="64"/></patternFill></fill>'); }
+    return this.yf;
+  };
+  StyleEdit.prototype.clone = function (orig, attrs) {
+    var key = orig + "|" + JSON.stringify(attrs);
+    if (this.cache[key] !== undefined) return this.cache[key];
+    var xf = this.xfAt(orig) || this.xfs[0] || '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>';
+    var head = /^<xf\b([^>]*?)\/?>/.exec(xf), headAttrs = head ? head[1] : "";
+    if (Object.keys(attrs).every(function (k) { return new RegExp('\\b' + k + '="' + attrs[k] + '"').test(headAttrs); })) { this.cache[key] = orig; return orig; }   // 이미 같은 서식
+    xf = xf.replace(/^<xf\b([^>]*?)(\/?)>/, function (all, a, slash) {
+      Object.keys(attrs).forEach(function (k) {
+        var re = new RegExp('\\b' + k + '="[^"]*"');
+        a = re.test(a) ? a.replace(re, k + '="' + attrs[k] + '"') : a + " " + k + '="' + attrs[k] + '"';
+      });
+      return "<xf" + a + slash + ">";
+    });
+    this.newXfs.push(xf);
+    this.cache[key] = this.base + this.newXfs.length - 1;
+    return this.cache[key];
+  };
+  StyleEdit.prototype.fmt = function (orig, code) { return this.clone(orig, { numFmtId: this.numFmtId(code), applyNumberFormat: 1 }); };
+  StyleEdit.prototype.yellow = function (orig) { return this.clone(orig, { fillId: this.yellowFill(), applyFill: 1 }); };
+  StyleEdit.prototype.xfAt = function (i) { return i < this.base ? this.xfs[i] : this.newXfs[i - this.base]; };
+  StyleEdit.prototype.fillIdOf = function (i) { var m = /\bfillId="(\d+)"/.exec(this.xfAt(i) || ""); return m ? parseInt(m[1], 10) : 0; };
+  StyleEdit.prototype.isYellowFill = function (id) { return this.yellowIds.indexOf(id) >= 0 || (this.yf !== null && id === this.yf); };
+  StyleEdit.prototype.isYellowStyle = function (i) { return this.isYellowFill(this.fillIdOf(i)); };
+  StyleEdit.prototype.plain = function (i, fillId) { return this.clone(i, { fillId: fillId, applyFill: fillId ? 1 : 0 }); };   // 노란색을 걷어낸 서식
+  StyleEdit.prototype.dirty = function () { return this.newXfs.length > 0; };
+  StyleEdit.prototype.build = function () {
+    if (!this.dirty()) return this.raw;
+    var out = this.raw, self = this, n = this.newXfs.length;
+    out = out.replace(/<cellXfs count="(\d+)"([^>]*)>([\s\S]*?)<\/cellXfs>/, function (all, c, a, body) { return '<cellXfs count="' + (parseInt(c, 10) + n) + '"' + a + ">" + body + self.newXfs.join("") + "</cellXfs>"; });
+    if (this.newFills.length) out = out.replace(/<fills count="(\d+)"([^>]*)>([\s\S]*?)<\/fills>/, function (all, c, a, body) { return '<fills count="' + (parseInt(c, 10) + self.newFills.length) + '"' + a + ">" + body + self.newFills.join("") + "</fills>"; });
+    if (this.newFmts.length) {
+      var nf = this.newFmts.map(function (x) { return '<numFmt numFmtId="' + x[0] + '" formatCode="' + x[1] + '"/>'; }).join("");
+      if (/<numFmts count="\d+"/.test(out)) out = out.replace(/<numFmts count="(\d+)"([^>]*)>/, function (all, c, a) { return '<numFmts count="' + (parseInt(c, 10) + self.newFmts.length) + '"' + a + ">"; }).replace("</numFmts>", nf + "</numFmts>");
+      else out = out.replace(/(<styleSheet[^>]*>)/, '$1<numFmts count="' + this.newFmts.length + '">' + nf + "</numFmts>");
+    }
+    return out;
+  };
+
+  function dateSerial(book, key) {
+    var y = Math.floor(key / 10000), m = Math.floor(key / 100) % 100, d = key % 100;
+    var base = book.date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
+    return Math.round((Date.UTC(y, m - 1, d) - base) / 86400000);
+  }
+
+  $("btnSave").addEventListener("click", function () {
+    var btn = $("btnSave"); btn.disabled = true; $("saveMsg").hidden = true; showErr("");
+    var book = files.ratio, sh0 = book && book.sheets[0];
+    if (!book) { btn.disabled = false; showErr("초방비율 파일을 먼저 올려 주세요."); return; }
+    readSheet(book, sh0.name).then(function (sh) {
+      var lay = findRatioLayout(book, sh);
+      var sel = selectedRows();
+      var P = new Patcher(sh.text), SS = new SharedStrings(book.rawShared), DS = new StyleEdit(book.rawStyles);
+      var cols = [lay.colName, lay.colPer, lay.colTot, lay.colDate, lay.colNote];   // 매크로가 채우는 칸. 제작년도·편수·편성유형·수급유형·장르 등 양식 값은 건드리지 않습니다.
+      var notes = [], written = 0, yellowCount = 0, prevFilled = 0, r;
+
+      // 이전에 입력돼 있던 행 수
+      for (r = lay.first; r <= lay.last; r++) {
+        if (cols.some(function (c) { var x = sh.cells[c + r]; return x && x.v !== null && x.v !== ""; })) prevFilled++;
+      }
+
+      // 방송시간 칸의 원래 채우기(이전에 칠해진 노란색을 걷어낼 때 돌아갈 서식)
+      var baseFill = {};
+      [lay.colPer, lay.colTot].forEach(function (col) {
+        var tally = {}, best = 0, bc = -1;
+        for (var q = lay.first; q <= lay.last; q++) { var f = DS.fillIdOf(P.styleOf(col + q)); if (!DS.isYellowFill(f)) tally[f] = (tally[f] || 0) + 1; }
+        Object.keys(tally).forEach(function (k) { if (tally[k] > bc) { bc = tally[k]; best = parseInt(k, 10); } });
+        baseFill[col] = best;
+      });
+
+      // 1) 이전 입력값을 모두 지웁니다 (서식은 유지, 이전 노란색 표시는 제거)
+      for (r = lay.first; r <= lay.last; r++) {
+        cols.forEach(function (col) {
+          var ref = col + r, isTime = col === lay.colPer || col === lay.colTot;
+          P.setCell(ref, function (st) {
+            var sIdx = st === null ? null : parseInt(st, 10);
+            if (isTime && sIdx !== null && DS.isYellowStyle(sIdx)) sIdx = DS.plain(sIdx, baseFill[col]);
+            return '<c r="' + ref + '"' + (sIdx !== null ? ' s="' + sIdx + '"' : "") + "/>";
+          }, null, true);
+        });
+      }
+
+      // 2) 새로 올린 파일 기준으로 맨 위 행부터 입력합니다.
+      // 편성명·초방일·비고는 항상 입력하고, 듀레이션을 못 찾았거나 확인이 필요한 행은 방송시간 칸만 노란색으로 칠합니다.
+      function putRow(r, x) {
+        var ok = x.m.status === "ok", yellow = rowFlag(x).cls !== "ok", v = ok ? chosen(x) : null;
+        var cnt = (sh.cells[lay.colCnt + r] && typeof sh.cells[lay.colCnt + r].v === "number") ? sh.cells[lay.colCnt + r].v : 1;
+        P.setStr(lay.colName + r, x.it.name, SS);
+        [[lay.colPer, v], [lay.colTot, v === null ? null : v * cnt]].forEach(function (pair) {
+          var ref = pair[0] + r, val = pair[1];
+          P.setCell(ref, function (st) {
+            var useS = yellow ? DS.yellow(st === null ? 0 : parseInt(st, 10)) : st;
+            var sa = useS !== null && useS !== undefined ? ' s="' + useS + '"' : "";
+            return val === null ? '<c r="' + ref + '"' + sa + "/>" : '<c r="' + ref + '"' + sa + "><v>" + val + "</v></c>";
+          });
+        });
+        P.set(lay.colDate + r, "num", dateSerial(book, listKey(x.it)), DS.fmt(P.styleOf(lay.colDate + r), "yyyy-mm-dd"));
+        if (x.it.fw) P.setStr(lay.colNote + r, "First-window", SS);
+        written++;
+        if (yellow) yellowCount++;
+      }
+      var room = lay.last - lay.first + 1;
+      sel.slice(0, room).forEach(function (x, i) { putRow(lay.first + i, x); });
+      notes.push(prevFilled ? "이전에 입력돼 있던 " + prevFilled + "행의 내용은 지우고, 새로 올린 파일 기준으로 " + lay.first + "행부터 다시 입력했습니다." : lay.first + "행부터 입력했습니다.");
+      if (sel.length > room) notes.push("입력할 행이 부족해 " + (sel.length - room) + "개는 입력하지 못했습니다.");
+      if (P.miss.length) notes.push("찾지 못한 칸 " + P.miss.length + "개는 건너뛰었습니다.");
+
+      var sheetText = P.text;
+      var bad = xml(sheetText).getElementsByTagName("parsererror");
+      if (bad.length) throw new Error("저장할 시트 내용이 올바르지 않습니다.");
+      book.zip.file(sh.path, sheetText);
+      if (SS.added.length && book.rawShared) book.zip.file("xl/sharedStrings.xml", SS.build());
+      if (DS.dirty()) book.zip.file("xl/styles.xml", DS.build());
+      var wbXml = book.wbText;
+      if (/<calcPr[^>]*\/>/.test(wbXml)) wbXml = wbXml.replace(/<calcPr([^>]*?)\/>/, function (m, a) { return /fullCalcOnLoad/.test(a) ? m : "<calcPr" + a + ' fullCalcOnLoad="1"/>'; });
+      else wbXml = wbXml.replace("</workbook>", '<calcPr fullCalcOnLoad="1"/></workbook>');
+      book.zip.file("xl/workbook.xml", wbXml);
+      return book.zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", compression: "DEFLATE" }).then(function (blob) {
+        saveBlob(blob, book.file.name.replace(/\.xlsx$/i, "") + "_방송시간입력.xlsx");
+        $("saveMsg").textContent = written + "개 편성을 입력했습니다. " + (yellowCount ? "그중 " + yellowCount + "개는 듀레이션을 찾지 못했거나 확인이 필요해 방송시간 칸을 노란색으로 표시했습니다. " : "") + notes.join(" ") + " 요약표 수식은 엑셀에서 '편집 사용'을 누르면 다시 계산됩니다.";
+        $("saveMsg").hidden = false;
+        delete book.cache[sh0.name];
+        return openBook(book.file).then(function (nb) { files.ratio = nb; });
+      });
+    }).catch(function (e) { showErr("저장 중 오류가 발생했습니다: " + (e && e.message ? e.message : e)); }).then(function () { btn.disabled = false; });
+  });
+
+  /* ================= 초방비율용 시트가 추가된 업로드 파일 내려받기 ================= */
+  /* 링크(URL)로 공유된 페이지에서는 직접 다운로드가 막혀 있어, 제공되는 '다운로드' 기능으로 저장합니다. 없으면 일반 다운로드로 대신합니다. */
+  function plainDownload(blob, name) {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+  function saveBlob(blob, name) {
+    var useCap = (window.claude && typeof window.claude.use === "function") ? window.claude.use("downloads") : Promise.resolve(null);
+    return Promise.resolve(useCap).catch(function () { return null; }).then(function (dl) {
+      if (!dl) { plainDownload(blob, name); return; }
+      return dl.save({ filename: name, data: blob }).catch(function (e) {
+        if (e && e.code === "declined") return;   // 사용자가 저장을 취소함
+        if (e && (e.code === "unavailable" || e.code === "not_granted" || e.code === "capability_disabled" || e.code === "capability_removed")) { plainDownload(blob, name); return; }
+        showErr("파일 저장에 실패했습니다: " + (e && e.message ? e.message : e));
+      });
+    });
+  }
+
+  function convFileName() { return up.file.name.replace(/\.(xlsx|xls|csv)$/i, "") + "_" + $("channelSelect").value + "_정리완료.xlsx"; }
+
+  function buildConvertedXlsx() {
+    var conv = up.conv, sh = up.sheet;
+    return JSZip.loadAsync(up.buf).then(function (zip) {
+      return Promise.all([readText(zip, "xl/workbook.xml"), readText(zip, "xl/_rels/workbook.xml.rels"), readText(zip, "[Content_Types].xml")]).then(function (r) {
+        var wbXml = r[0], relsXml = r[1], ctXml = r[2];
+        var SS = new SharedStrings(up.book.rawShared), PAD = new StyleEdit(up.book.rawStyles);
+        var colsXml = "";
+        var cm = /<cols>([\s\S]*?)<\/cols>/.exec(sh.text);
+        if (cm) {
+          var cl = (cm[1].match(/<col\b[^>]*\/>/g) || []).filter(function (c) { return parseInt(/min="(\d+)"/.exec(c)[1], 10) <= 9; }).map(function (c) { return c.replace(/max="(\d+)"/, function (x, n) { return 'max="' + Math.min(parseInt(n, 10), 9) + '"'; }); });
+          if (cl.length) colsXml = "<cols>" + cl.join("") + "</cols>";
+        }
+        var rowsXml = conv.result.map(function (vals, i) {
+          var rn = i + 1, srcRow = i === 0 ? 1 : conv.keptWithSource[i - 1].sourceRow, cells = "";
+          for (var ci = 1; ci <= 9; ci++) {
+            var srcCol = i === 0 ? ci : Math.min(ci, 8), sc = sh.cells[colName(srcCol) + srcRow];
+            var s = sc ? sc.s : 0, val = vals[ci - 1], ref = colName(ci) + rn, str = val == null ? "" : String(val);
+            if (ci === 1 && i > 0) cells += '<c r="' + ref + '" s="' + s + '"><v>' + val + "</v></c>";
+            else if (ci >= 4 && ci <= 6 && /^\d{1,2}$/.test(str)) cells += '<c r="' + ref + '" s="' + PAD.fmt(s, "00") + '"><v>' + Number(str) + "</v></c>";
+            else if (str === "") cells += '<c r="' + ref + '" s="' + s + '"/>';
+            else cells += SS.cellXml(ref, s, str);
+          }
+          return '<row r="' + rn + '" spans="1:9" ht="17.4" customHeight="1" x14ac:dyDescent="0.4">' + cells + "</row>";
+        }).join("");
+        // 데이터 아래 빈 행도 원본 시트 범위까지 17.4로 지정해, 시트 기본 높이를 무시하는 프로그램에서도 같은 높이로 보이게 합니다.
+        var srcMax = Object.keys(sh.cells).reduce(function (m, ref) { return Math.max(m, rowNum(ref)); }, 0), lastRow = Math.min(Math.max(conv.result.length, srcMax, 1000), 3000);
+        for (var er = conv.result.length + 1; er <= lastRow; er++) rowsXml += '<row r="' + er + '" spans="1:9" ht="17.4" customHeight="1" x14ac:dyDescent="0.4"/>';
+        var sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="x14ac" xmlns:x14ac="http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac"><dimension ref="A1:I' + conv.result.length + '"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultColWidth="8.8984375" defaultRowHeight="17.4" customHeight="1" x14ac:dyDescent="0.4"/>' + colsXml + "<sheetData>" + rowsXml + '</sheetData><pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>';
+        var existing = up.book.sheets.filter(function (x) { return x.name === "초방비율용"; })[0], sheetPath;
+        if (existing) { sheetPath = existing.path; zip.file(sheetPath, sheetXml); }   // 이미 있으면 기존 시트를 새 결과로 교체
+        else {
+          var nums = Object.keys(zip.files).map(function (n) { var m = /^xl\/worksheets\/sheet(\d+)\.xml$/.exec(n); return m ? parseInt(m[1], 10) : 0; });
+          var n = Math.max.apply(null, nums.concat([0])) + 1, path = "xl/worksheets/sheet" + n + ".xml";
+          var rid = "rId" + (Math.max.apply(null, (relsXml.match(/Id="rId(\d+)"/g) || []).map(function (x) { return parseInt(/(\d+)/.exec(x)[1], 10); }).concat([0])) + 1);
+          var sid = Math.max.apply(null, (wbXml.match(/sheetId="(\d+)"/g) || []).map(function (x) { return parseInt(/(\d+)/.exec(x)[1], 10); }).concat([0])) + 1;
+          sheetPath = path; zip.file(path, sheetXml);
+          relsXml = relsXml.replace("</Relationships>", '<Relationship Id="' + rid + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + n + '.xml"/></Relationships>');
+          ctXml = ctXml.replace("</Types>", '<Override PartName="/' + path + '" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>');
+          // 통합문서 맨 위에 r 접두어 선언이 없는 파일도 있어, 그때는 시트 항목에 직접 선언
+          var rDecl = /<workbook\b[^>]*xmlns:r=/.test(wbXml) ? "" : ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+          wbXml = wbXml.replace("</sheets>", '<sheet name="초방비율용" sheetId="' + sid + '"' + rDecl + ' r:id="' + rid + '"/></sheets>');
+          zip.file("xl/_rels/workbook.xml.rels", relsXml); zip.file("[Content_Types].xml", ctXml); zip.file("xl/workbook.xml", wbXml);
+        }
+        if (SS.added.length && up.book.rawShared) zip.file("xl/sharedStrings.xml", SS.build());
+        if (PAD.dirty()) zip.file("xl/styles.xml", PAD.build());
+        return zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", compression: "DEFLATE" }).then(function (blob) {
+          return { blob: blob, sheetPath: sheetPath, lastRow: lastRow };
+        });
+      });
+    });
+  }
+
+  // 내려받을 파일을 다시 열어서 초방비율용 시트의 행 높이가 실제로 17.4인지 확인
+  function verifyHeights(res) {
+    return JSZip.loadAsync(res.blob).then(function (z) { return z.file(res.sheetPath).async("string"); }).then(function (t) {
+      var rows = t.match(/<row\b[^>]*>/g) || [];
+      var ok = rows.filter(function (r) { return /\bht="17\.4"/.test(r) && /customHeight="1"/.test(r); }).length;
+      var def = /<sheetFormatPr[^>]*defaultRowHeight="17\.4"/.test(t);
+      return { total: rows.length, ok: ok, def: def };
+    });
+  }
+
+  function showConvMsg(text, bad) {
+    var el = $("convMsg"); el.textContent = text; el.hidden = !text;
+    el.style.background = bad ? "var(--bad-soft)" : "var(--ok-soft)"; el.style.color = bad ? "var(--bad)" : "var(--ok)";
+  }
+
+  $("btnConv").addEventListener("click", function () {
+    if (!up || !up.conv) return;
+    var btn = $("btnConv"); btn.disabled = true; showErr(""); showConvMsg("");
+    var job;
+    if (up.kind === "xlsx") job = buildConvertedXlsx().then(function (res) {
+      return verifyHeights(res).then(function (v) {
+        saveBlob(res.blob, convFileName());
+        var good = v.total > 0 && v.ok === v.total && v.def;
+        showConvMsg(good
+          ? "내려받은 파일 「" + convFileName() + "」의 초방비율용 시트 1~" + v.total + "행 행 높이를 17.4로 저장했습니다. (파일을 다시 열어 확인함) 올리신 원본 파일은 바뀌지 않으니, 행 높이는 이 새 파일에서 확인해 주세요."
+          : "행 높이 확인에서 17.4가 아닌 행이 있습니다 (" + v.ok + "/" + v.total + "행). 이 화면을 캡처해서 알려 주세요.", !good);
+      });
+    });
+    else job = Promise.resolve().then(function () {
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(up.rows), String(up.name).slice(0, 31));
+      var resWs = XLSX.utils.aoa_to_sheet(up.conv.result);
+      resWs["!rows"] = up.conv.result.map(function () { return { hpt: 17.4 }; });   // 행 높이 17.4
+      XLSX.utils.book_append_sheet(wb, resWs, "초방비율용");
+      XLSX.writeFile(wb, convFileName());
+      showConvMsg("초방비율용 시트 데이터 " + up.conv.result.length + "행의 행 높이를 17.4로 저장했습니다.");
+    });
+    job.catch(function (e) { showErr("다운로드 오류: " + (e && e.message ? e.message : e)); }).then(function () { btn.disabled = false; });
+  });
+
+  $("btnReset").addEventListener("click", function () {
+    files.grid = files.upload = files.ratio = null; gridDays = null; up = null; listData = null; model = null; channelTouched = false;
+    setSlot("grid", "", "주간 편성표 시트가 들어 있는 파일");
+    setSlot("upload", "", "str1~str8 열이 있는 업로드 파일 (XLSX, XLS, CSV)");
+    setSlot("ratio", "", '"초방 프로그램 리스트" 상세 내역 파일');
+    ["convPanel", "optPanel", "resPanel", "savePanel"].forEach(function (id) { $(id).hidden = true; });
+    $("saveMsg").hidden = true; showErr("");
+  });
+
+  window.__macro = { files: files, compute: compute, getModel: function () { return model; }, getUp: function () { return up; } };
+})();
+</script>
+
+</body></html>
